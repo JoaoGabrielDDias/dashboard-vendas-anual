@@ -10,6 +10,7 @@ import helmet from 'helmet';
 
 import vendasRouter from './routes/vendas.js';
 import authRouter from './routes/auth.js';
+import adminRouter from './routes/admin.js';
 
 dns.setServers(['1.1.1.1', '8.8.8.8']);
 dotenv.config();
@@ -25,6 +26,12 @@ const publicDir = path.join(__dirname, 'public');
 function requireAuth(req, res, next) {
   if (req.session?.user) return next();
   return res.redirect('/login');
+}
+
+function requireAdminPage(req, res, next) {
+  if (!req.session?.user) return res.redirect('/login');
+  if (req.session.user.perfil !== 'admin') return res.redirect('/');
+  return next();
 }
 
 app.set('trust proxy', 1);
@@ -69,6 +76,7 @@ app.use(
 
 app.use('/api/auth', authRouter);
 app.use('/api/vendas', requireAuth, vendasRouter);
+app.use('/api/admin', adminRouter);
 
 app.get('/health', (req, res) => {
   res.json({
@@ -99,6 +107,14 @@ app.get('/dashboard', requireAuth, (req, res) => {
 
 app.get('/index.html', requireAuth, (req, res) => {
   return res.sendFile(path.join(publicDir, 'index.html'));
+});
+
+app.get('/admin', requireAdminPage, (req, res) => {
+  return res.sendFile(path.join(publicDir, 'admin.html'));
+});
+
+app.get('/admin.html', requireAdminPage, (req, res) => {
+  return res.sendFile(path.join(publicDir, 'admin.html'));
 });
 
 app.use((req, res) => {

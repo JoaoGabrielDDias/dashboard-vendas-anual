@@ -1,0 +1,573 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Painel Admin • Usuários</title>
+  <style>
+    :root{
+      --bg:#f6f8fc; --card:#fff; --text:#0f172a; --muted:#475569; --line:#e2e8f0;
+      --shadow: 0 14px 35px rgba(2,6,23,.08);
+      --accent:#2563eb; --accent2:#0ea5e9; --ok:#16a34a; --bad:#dc2626; --warn:#d97706;
+      --radius:18px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      background:
+        radial-gradient(900px 500px at 10% 0%, rgba(37,99,235,.12), transparent 60%),
+        radial-gradient(900px 500px at 90% 10%, rgba(14,165,233,.10), transparent 60%),
+        var(--bg);
+      color:var(--text);
+    }
+    .wrap{max-width:1280px;margin:0 auto;padding:20px}
+    .topbar{
+      display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+      background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:16px;
+    }
+    .topbar h1{margin:0;font-size:22px}
+    .topbar p{margin:6px 0 0;color:var(--muted);font-size:14px}
+    .actions{display:flex;gap:10px;flex-wrap:wrap}
+    .btn{
+      border:none;border-radius:14px;padding:12px 16px;font-weight:900;cursor:pointer;
+      background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;
+    }
+    .btn2{
+      border:1px solid var(--line);border-radius:14px;padding:12px 16px;font-weight:900;
+      cursor:pointer;background:#fff;color:var(--text);
+    }
+    .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:16px}
+    .card{
+      background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:16px;
+    }
+    .card small{display:block;color:var(--muted);font-size:12px;font-weight:900;text-transform:uppercase}
+    .card .value{margin-top:8px;font-size:26px;font-weight:1000}
+    @media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+    @media (max-width:560px){.grid{grid-template-columns:1fr}}
+
+    .panel{
+      margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+      box-shadow:var(--shadow);padding:16px;
+    }
+    .panelHead{
+      display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;
+    }
+    .panelHead h2{margin:0;font-size:18px}
+    .search{
+      width:100%;max-width:320px;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-weight:800;
+    }
+    .tableWrap{overflow:auto;border:1px solid var(--line);border-radius:16px}
+    table{width:100%;border-collapse:collapse;background:#fff;min-width:980px}
+    th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}
+    th{background:#f8fafc;font-size:11px;text-transform:uppercase;letter-spacing:.2px;color:#334155}
+    tr:hover td{background:#f8fafc}
+    .tag{
+      display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;
+      border:1px solid var(--line);font-size:12px;font-weight:900;background:#f8fafc;color:var(--muted);
+    }
+    .tag.ok{color:var(--ok);border-color:rgba(22,163,74,.2);background:rgba(22,163,74,.06)}
+    .tag.bad{color:var(--bad);border-color:rgba(220,38,38,.2);background:rgba(220,38,38,.06)}
+    .rowBtns{display:flex;gap:8px;flex-wrap:wrap}
+    .mini{
+      border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;cursor:pointer;font-weight:900;
+    }
+    .mini.danger{color:var(--bad)}
+    .msg{
+      margin-top:12px;padding:12px 14px;border-radius:14px;font-size:13px;font-weight:800;display:none;
+    }
+    .msg.ok{display:block;background:rgba(22,163,74,.08);color:var(--ok);border:1px solid rgba(22,163,74,.18)}
+    .msg.bad{display:block;background:rgba(220,38,38,.08);color:var(--bad);border:1px solid rgba(220,38,38,.18)}
+
+    .modalBg{
+      position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:center;justify-content:center;padding:20px;z-index:50;
+    }
+    .modalBg.show{display:flex}
+    .modal{
+      width:100%;max-width:520px;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:18px;
+    }
+    .modal h3{margin:0 0 12px}
+    .formGrid{display:grid;gap:12px}
+    label{display:block;font-size:13px;font-weight:900;color:var(--muted);margin-bottom:6px}
+    input,select{
+      width:100%;border:1px solid var(--line);border-radius:12px;padding:11px 12px;font-size:14px;
+    }
+    .check{
+      display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:var(--text)
+    }
+    .check input{width:auto}
+    .modalActions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin-top:16px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>Painel Admin</h1>
+        <p>Gestão segura de usuários do sistema</p>
+      </div>
+      <div class="actions">
+        <button class="btn2" id="btnBack">Voltar ao Dashboard</button>
+        <button class="btn" id="btnNew">Novo Usuário</button>
+      </div>
+    </div>
+
+    <section class="grid">
+      <div class="card">
+        <small>Total de usuários</small>
+        <div class="value" id="kpiTotal">0</div>
+      </div>
+      <div class="card">
+        <small>Ativos</small>
+        <div class="value" id="kpiAtivos">0</div>
+      </div>
+      <div class="card">
+        <small>Inativos</small>
+        <div class="value" id="kpiInativos">0</div>
+      </div>
+      <div class="card">
+        <small>Administradores</small>
+        <div class="value" id="kpiAdmins">0</div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panelHead">
+        <h2>Usuários</h2>
+        <input id="search" class="search" placeholder="Buscar por nome, usuário ou perfil" />
+      </div>
+
+      <div id="msg" class="msg"></div>
+
+      <div class="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Nome</th>
+              <th>Usuário</th>
+              <th>Perfil</th>
+              <th>Status</th>
+              <th>Criado em</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="modalBg" id="modalUserBg">
+    <div class="modal">
+      <h3 id="modalTitle">Novo Usuário</h3>
+      <div class="formGrid">
+        <div>
+          <label>Nome</label>
+          <input id="fNome" />
+        </div>
+        <div>
+          <label>Usuário</label>
+          <input id="fUsuario" />
+        </div>
+        <div>
+          <label>Perfil</label>
+          <select id="fPerfil">
+            <option value="admin">admin</option>
+          </select>
+        </div>
+        <div id="senhaWrap">
+          <label>Senha</label>
+          <input id="fSenha" type="password" />
+        </div>
+        <label class="check">
+          <input id="fAtivo" type="checkbox" checked />
+          Usuário ativo
+        </label>
+      </div>
+      <div class="modalActions">
+        <button class="btn2" id="btnCancelUser">Cancelar</button>
+        <button class="btn" id="btnSaveUser">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modalBg" id="modalPassBg">
+    <div class="modal">
+      <h3>Alterar Senha</h3>
+      <div class="formGrid">
+        <div>
+          <label>Nova senha</label>
+          <input id="fNovaSenha" type="password" />
+        </div>
+      </div>
+      <div class="modalActions">
+        <button class="btn2" id="btnCancelPass">Cancelar</button>
+        <button class="btn" id="btnSavePass">Atualizar senha</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let USERS = [];
+    let editingUserId = null;
+    let changingPasswordUserId = null;
+
+    const els = {
+      tbody: document.getElementById('tbody'),
+      search: document.getElementById('search'),
+      msg: document.getElementById('msg'),
+      kpiTotal: document.getElementById('kpiTotal'),
+      kpiAtivos: document.getElementById('kpiAtivos'),
+      kpiInativos: document.getElementById('kpiInativos'),
+      kpiAdmins: document.getElementById('kpiAdmins'),
+
+      btnBack: document.getElementById('btnBack'),
+      btnNew: document.getElementById('btnNew'),
+
+      modalUserBg: document.getElementById('modalUserBg'),
+      modalTitle: document.getElementById('modalTitle'),
+      fNome: document.getElementById('fNome'),
+      fUsuario: document.getElementById('fUsuario'),
+      fPerfil: document.getElementById('fPerfil'),
+      fSenha: document.getElementById('fSenha'),
+      fAtivo: document.getElementById('fAtivo'),
+      senhaWrap: document.getElementById('senhaWrap'),
+      btnCancelUser: document.getElementById('btnCancelUser'),
+      btnSaveUser: document.getElementById('btnSaveUser'),
+
+      modalPassBg: document.getElementById('modalPassBg'),
+      fNovaSenha: document.getElementById('fNovaSenha'),
+      btnCancelPass: document.getElementById('btnCancelPass'),
+      btnSavePass: document.getElementById('btnSavePass'),
+    };
+
+    function showMsg(text, type='ok') {
+      els.msg.className = `msg ${type}`;
+      els.msg.textContent = text;
+    }
+
+    function clearMsg() {
+      els.msg.className = 'msg';
+      els.msg.textContent = '';
+    }
+
+    function fmtDate(v) {
+      if (!v) return '—';
+      return new Date(v).toLocaleString('pt-BR');
+    }
+
+    async function checkAdmin() {
+      const resp = await fetch('/api/auth/me', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      const json = await resp.json();
+
+      if (!resp.ok || !json.ok || !json.authenticated) {
+        window.location.href = '/login';
+        return false;
+      }
+
+      if (json.user?.perfil !== 'admin') {
+        window.location.href = '/';
+        return false;
+      }
+
+      return true;
+    }
+
+    function updateKpis(rows) {
+      els.kpiTotal.textContent = rows.length;
+      els.kpiAtivos.textContent = rows.filter(x => x.ativo).length;
+      els.kpiInativos.textContent = rows.filter(x => !x.ativo).length;
+      els.kpiAdmins.textContent = rows.filter(x => x.perfil === 'admin').length;
+    }
+
+    function filteredUsers() {
+      const q = (els.search.value || '').trim().toLowerCase();
+      if (!q) return USERS;
+      return USERS.filter(u =>
+        `${u.nome} ${u.usuario} ${u.perfil}`.toLowerCase().includes(q)
+      );
+    }
+
+    function renderTable() {
+      const rows = filteredUsers();
+      updateKpis(USERS);
+
+      els.tbody.innerHTML = rows.map(u => `
+        <tr>
+          <td>${u.nome || '—'}</td>
+          <td>${u.usuario || '—'}</td>
+          <td>${u.perfil || '—'}</td>
+          <td>
+            <span class="tag ${u.ativo ? 'ok' : 'bad'}">${u.ativo ? 'Ativo' : 'Inativo'}</span>
+          </td>
+          <td>${fmtDate(u.createdAt)}</td>
+          <td>
+            <div class="rowBtns">
+              <button class="mini" data-edit="${u._id}">Editar</button>
+              <button class="mini" data-pass="${u._id}">Senha</button>
+              <button class="mini" data-toggle="${u._id}" data-ativo="${u.ativo}">
+                ${u.ativo ? 'Desativar' : 'Ativar'}
+              </button>
+              <button class="mini danger" data-delete="${u._id}">Excluir</button>
+            </div>
+          </td>
+        </tr>
+      `).join('') || `
+        <tr><td colspan="6">Nenhum usuário encontrado.</td></tr>
+      `;
+
+      els.tbody.querySelectorAll('[data-edit]').forEach(btn => {
+        btn.addEventListener('click', () => openEdit(btn.dataset.edit));
+      });
+
+      els.tbody.querySelectorAll('[data-pass]').forEach(btn => {
+        btn.addEventListener('click', () => openPassword(btn.dataset.pass));
+      });
+
+      els.tbody.querySelectorAll('[data-toggle]').forEach(btn => {
+        btn.addEventListener('click', () => toggleStatus(btn.dataset.toggle, btn.dataset.ativo === 'true'));
+      });
+
+      els.tbody.querySelectorAll('[data-delete]').forEach(btn => {
+        btn.addEventListener('click', () => removeUser(btn.dataset.delete));
+      });
+    }
+
+    async function loadUsers() {
+      clearMsg();
+
+      const resp = await fetch('/api/admin/users', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      const json = await resp.json();
+
+      if (!resp.ok || !json.ok) {
+        showMsg(json.message || 'Erro ao carregar usuários', 'bad');
+        return;
+      }
+
+      USERS = json.data || [];
+      renderTable();
+    }
+
+    function resetUserForm() {
+      editingUserId = null;
+      els.modalTitle.textContent = 'Novo Usuário';
+      els.fNome.value = '';
+      els.fUsuario.value = '';
+      els.fPerfil.value = 'admin';
+      els.fSenha.value = '';
+      els.fAtivo.checked = true;
+      els.senhaWrap.style.display = '';
+    }
+
+    function openNew() {
+      resetUserForm();
+      els.modalUserBg.classList.add('show');
+    }
+
+    function openEdit(id) {
+      const user = USERS.find(x => x._id === id);
+      if (!user) return;
+
+      editingUserId = id;
+      els.modalTitle.textContent = 'Editar Usuário';
+      els.fNome.value = user.nome || '';
+      els.fUsuario.value = user.usuario || '';
+      els.fPerfil.value = user.perfil || 'admin';
+      els.fSenha.value = '';
+      els.fAtivo.checked = !!user.ativo;
+      els.senhaWrap.style.display = 'none';
+      els.modalUserBg.classList.add('show');
+    }
+
+    function closeUserModal() {
+      els.modalUserBg.classList.remove('show');
+      resetUserForm();
+    }
+
+    async function saveUser() {
+      clearMsg();
+
+      const payload = {
+        nome: els.fNome.value.trim(),
+        usuario: els.fUsuario.value.trim(),
+        perfil: els.fPerfil.value,
+        ativo: els.fAtivo.checked
+      };
+
+      try {
+        let resp;
+        if (editingUserId) {
+          resp = await fetch(`/api/admin/users/${editingUserId}`, {
+            method: 'PUT',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+        } else {
+          payload.senha = els.fSenha.value;
+          resp = await fetch('/api/admin/users', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          });
+        }
+
+        const json = await resp.json();
+
+        if (!resp.ok || !json.ok) {
+          showMsg(json.message || 'Erro ao salvar usuário', 'bad');
+          return;
+        }
+
+        showMsg(json.message || 'Operação realizada com sucesso', 'ok');
+        closeUserModal();
+        await loadUsers();
+      } catch (error) {
+        showMsg('Erro ao conectar com o servidor', 'bad');
+      }
+    }
+
+    function openPassword(id) {
+      changingPasswordUserId = id;
+      els.fNovaSenha.value = '';
+      els.modalPassBg.classList.add('show');
+    }
+
+    function closePasswordModal() {
+      changingPasswordUserId = null;
+      els.fNovaSenha.value = '';
+      els.modalPassBg.classList.remove('show');
+    }
+
+    async function savePassword() {
+      clearMsg();
+
+      try {
+        const resp = await fetch(`/api/admin/users/${changingPasswordUserId}/password`, {
+          method: 'PUT',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ senha: els.fNovaSenha.value })
+        });
+
+        const json = await resp.json();
+
+        if (!resp.ok || !json.ok) {
+          showMsg(json.message || 'Erro ao atualizar senha', 'bad');
+          return;
+        }
+
+        showMsg(json.message || 'Senha atualizada', 'ok');
+        closePasswordModal();
+      } catch (error) {
+        showMsg('Erro ao conectar com o servidor', 'bad');
+      }
+    }
+
+    async function toggleStatus(id, ativoAtual) {
+      clearMsg();
+
+      const confirmText = ativoAtual ? 'Desativar este usuário?' : 'Ativar este usuário?';
+      if (!confirm(confirmText)) return;
+
+      try {
+        const resp = await fetch(`/api/admin/users/${id}/status`, {
+          method: 'PATCH',
+          credentials: 'same-origin',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ ativo: !ativoAtual })
+        });
+
+        const json = await resp.json();
+
+        if (!resp.ok || !json.ok) {
+          showMsg(json.message || 'Erro ao alterar status', 'bad');
+          return;
+        }
+
+        showMsg(json.message || 'Status alterado', 'ok');
+        await loadUsers();
+      } catch (error) {
+        showMsg('Erro ao conectar com o servidor', 'bad');
+      }
+    }
+
+    async function removeUser(id) {
+      clearMsg();
+
+      if (!confirm('Excluir este usuário? Essa ação não pode ser desfeita.')) return;
+
+      try {
+        const resp = await fetch(`/api/admin/users/${id}`, {
+          method: 'DELETE',
+          credentials: 'same-origin',
+          headers: { 'Accept': 'application/json' }
+        });
+
+        const json = await resp.json();
+
+        if (!resp.ok || !json.ok) {
+          showMsg(json.message || 'Erro ao excluir usuário', 'bad');
+          return;
+        }
+
+        showMsg(json.message || 'Usuário excluído', 'ok');
+        await loadUsers();
+      } catch (error) {
+        showMsg('Erro ao conectar com o servidor', 'bad');
+      }
+    }
+
+    els.search.addEventListener('input', renderTable);
+    els.btnBack.addEventListener('click', () => window.location.href = '/');
+    els.btnNew.addEventListener('click', openNew);
+
+    els.btnCancelUser.addEventListener('click', closeUserModal);
+    els.btnSaveUser.addEventListener('click', saveUser);
+
+    els.btnCancelPass.addEventListener('click', closePasswordModal);
+    els.btnSavePass.addEventListener('click', savePassword);
+
+    els.modalUserBg.addEventListener('click', (e) => {
+      if (e.target === els.modalUserBg) closeUserModal();
+    });
+
+    els.modalPassBg.addEventListener('click', (e) => {
+      if (e.target === els.modalPassBg) closePasswordModal();
+    });
+
+    async function boot() {
+      const ok = await checkAdmin();
+      if (!ok) return;
+      await loadUsers();
+    }
+
+    boot();
+  </script>
+</body>
+</html>

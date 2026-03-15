@@ -236,6 +236,7 @@
           <span class="pill"><span class="dot ok"></span><span id="dupePill">0 registros brutos</span></span>
           <span class="pill"><span class="dot ok" id="catDot"></span><span id="catPill">Categoria: Todas</span></span>
           <span class="userBadge" id="userBadge"></span>
+          <button class="btn2" id="btnAdmin" type="button" style="display:none;">Admin</button>
           <button class="btn2" id="btnLogout" type="button">Sair</button>
         </div>
       </div>
@@ -373,6 +374,7 @@
     btnToggle: document.getElementById('btnToggle'),
     btnReload: document.getElementById('btnReload'),
     btnLogout: document.getElementById('btnLogout'),
+    btnAdmin: document.getElementById('btnAdmin'),
     fileInfo: document.getElementById('fileInfo'),
     dot: document.getElementById('dot'),
     status: document.getElementById('status'),
@@ -1098,10 +1100,15 @@
       }
 
       AUTH_USER = json.user || null;
+
       if (AUTH_USER?.nome) {
         els.userBadge.textContent = `Olá, ${AUTH_USER.nome}`;
       } else if (AUTH_USER?.usuario) {
         els.userBadge.textContent = `Olá, ${AUTH_USER.usuario}`;
+      }
+
+      if (AUTH_USER?.perfil === 'admin') {
+        els.btnAdmin.style.display = '';
       }
 
       return true;
@@ -1212,6 +1219,10 @@
   els.tableSearch.addEventListener('input', ()=>{ if (!RAW.length) return; renderTable(filterRows()); });
 
   els.btnReload.addEventListener('click', loadFromApi);
+
+  els.btnAdmin.addEventListener('click', () => {
+    window.location.href = '/admin';
+  });
 
   els.btnLogout.addEventListener('click', async () => {
     try {
