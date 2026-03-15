@@ -51,18 +51,62 @@ router.get('/normalizado', async (req, res) => {
     const docs = await Venda.find({}).lean();
     const grouped = new Map();
 
+    let validos = 0;
+    let ignorados = 0;
+
     for (const doc of docs) {
-      const ano = Math.trunc(toNumberBR(doc.ano));
-      const mes = Math.trunc(toNumberBR(doc.mes));
-      const dia = Math.trunc(toNumberBR(doc.dia));
+      const ano = Math.trunc(toNumberBR(
+        doc.ano ?? doc.Ano ?? doc['ANO'] ?? doc['Ano']
+      ));
 
-      if (!ano || !mes || !dia) continue;
+      const mes = Math.trunc(toNumberBR(
+        doc.mes ?? doc.Mês ?? doc.Mes ?? doc['MES'] ?? doc['Mês'] ?? doc['Mes']
+      ));
 
-      const venda = toNumberBR(doc.vlr_venda_paga_total);
-      const meta = toNumberBR(doc.vlr_meta);
-      const desvioNaoCalc = toNumberBR(doc.vlr_desvio_meta_nao_calcados);
-      const desvioCalc = toNumberBR(doc.vlr_desvio_meta_calcados);
-      const desvioMdsaaVlr = toNumberBR(doc.vlr_desvio_mdsaa);
+      const dia = Math.trunc(toNumberBR(
+        doc.dia ?? doc.Dia ?? doc['DIA'] ?? doc['Dia']
+      ));
+
+      if (!ano || !mes || !dia) {
+        ignorados++;
+        continue;
+      }
+
+      validos++;
+
+      const venda = toNumberBR(
+        doc.vlr_venda_paga_total ??
+        doc.VlrVendaPagaTotal ??
+        doc['vlr_venda_paga_total'] ??
+        doc['Vlr Venda Paga Total']
+      );
+
+      const meta = toNumberBR(
+        doc.vlr_meta ??
+        doc.VlrMeta ??
+        doc['vlr_meta'] ??
+        doc['Vlr Meta']
+      );
+
+      const desvioNaoCalc = toNumberBR(
+        doc.vlr_desvio_meta_nao_calcados ??
+        doc['vlr_desvio_meta_nao_calcados'] ??
+        doc['Vlr Desvio Meta Não Calçados'] ??
+        doc['Vlr Desvio Meta Nao Calcados']
+      );
+
+      const desvioCalc = toNumberBR(
+        doc.vlr_desvio_meta_calcados ??
+        doc['vlr_desvio_meta_calcados'] ??
+        doc['Vlr Desvio Meta Calçados'] ??
+        doc['Vlr Desvio Meta Calcados']
+      );
+
+      const desvioMdsaaVlr = toNumberBR(
+        doc.vlr_desvio_mdsaa ??
+        doc['vlr_desvio_mdsaa'] ??
+        doc['Vlr Desvio Mdsaa']
+      );
 
       const key = `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
 
@@ -97,6 +141,10 @@ router.get('/normalizado', async (req, res) => {
       ok: true,
       totalBruto: docs.length,
       totalConsolidado: data.length,
+      validos,
+      ignorados,
+      sampleKeys: docs[0] ? Object.keys(docs[0]) : [],
+      sampleDoc: docs[0] || null,
       anosDisponiveis,
       data
     });
