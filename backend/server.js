@@ -8,9 +8,11 @@ import { fileURLToPath } from 'url';
 import dns from 'node:dns';
 import helmet from 'helmet';
 
+
 import vendasRouter from './routes/vendas.js';
 import authRouter from './routes/auth.js';
 import adminRouter from './routes/admin.js';
+import importsRouter from './routes/imports.js';
 
 dns.setServers(['1.1.1.1', '8.8.8.8']);
 dotenv.config();
@@ -77,6 +79,7 @@ app.use(
 app.use('/api/auth', authRouter);
 app.use('/api/vendas', requireAuth, vendasRouter);
 app.use('/api/admin', adminRouter);
+app.use('/api/imports', importsRouter);
 
 app.get('/health', (req, res) => {
   res.json({
