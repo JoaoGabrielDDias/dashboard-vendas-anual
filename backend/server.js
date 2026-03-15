@@ -61,18 +61,15 @@ app.use(
   })
 );
 
-// NÃO servir index.html automaticamente
 app.use(
   express.static(publicDir, {
     index: false
   })
 );
 
-// APIs
 app.use('/api/auth', authRouter);
 app.use('/api/vendas', requireAuth, vendasRouter);
 
-// Healthcheck
 app.get('/health', (req, res) => {
   res.json({
     ok: true,
@@ -82,7 +79,6 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Login público
 app.get('/login', (req, res) => {
   if (req.session?.user) return res.redirect('/');
   return res.sendFile(path.join(publicDir, 'login.html'));
@@ -93,7 +89,6 @@ app.get('/login.html', (req, res) => {
   return res.sendFile(path.join(publicDir, 'login.html'));
 });
 
-// Dashboard protegido
 app.get('/', requireAuth, (req, res) => {
   return res.sendFile(path.join(publicDir, 'index.html'));
 });
@@ -106,7 +101,6 @@ app.get('/index.html', requireAuth, (req, res) => {
   return res.sendFile(path.join(publicDir, 'index.html'));
 });
 
-// Fallback
 app.use((req, res) => {
   if (!req.session?.user) return res.redirect('/login');
   return res.redirect('/');
