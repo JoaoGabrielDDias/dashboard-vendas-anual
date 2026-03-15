@@ -19,6 +19,7 @@ const PORT = process.env.PORT || 3000;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const publicDir = path.join(__dirname, 'public');
 
 function requireAuth(req, res, next) {
   if (req.session?.user) return next();
@@ -45,25 +46,38 @@ app.use(
   })
 );
 
-app.use(express.static(path.join(__dirname, 'public')));
+// arquivos estáticos
+app.use(express.static(publicDir));
 
+// APIs
 app.use('/api/auth', authRouter);
 app.use('/api/vendas', requireAuth, vendasRouter);
 
+// healthcheck
 app.get('/health', (req, res) => {
   res.json({ ok: true, message: 'Servidor online' });
 });
 
+// rotas públicas de login
+app.get('/login', (req, res) => {
+  res.sendFile(path.join(publicDir, 'login.html'));
+});
+
+app.get('/login.html', (req, res) => {
+  res.sendFile(path.join(publicDir, 'login.html'));
+});
+
+// dashboard protegido
 app.get('/', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(publicDir, 'index.html'));
 });
 
 app.get('/dashboard', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(publicDir, 'index.html'));
 });
 
-app.get('/login', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+app.get('/index.html', requireAuth, (req, res) => {
+  res.sendFile(path.join(publicDir, 'index.html'));
 });
 
 async function startServer() {
@@ -71,7 +85,7 @@ async function startServer() {
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('MongoDB conectado com sucesso');
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`Servidor rodando na porta ${PORT}`);
     });
   } catch (error) {
