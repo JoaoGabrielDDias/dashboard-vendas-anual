@@ -17,7 +17,7 @@ router.post('/login', async (req, res) => {
 
     const user = await Usuario.findOne({
       usuario: String(usuario).trim()
-    }).lean();
+    });
 
     if (!user || !user.ativo) {
       return res.status(401).json({
@@ -35,16 +35,34 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    req.session.user = {
-      id: String(user._id),
-      nome: user.nome,
-      usuario: user.usuario,
-      perfil: user.perfil
-    };
+    req.session.regenerate((err) => {
+      if (err) {
+        return res.status(500).json({
+          ok: false,
+          message: 'Erro ao iniciar sessão'
+        });
+      }
 
-    return res.json({
-      ok: true,
-      user: req.session.user
+      req.session.user = {
+        id: String(user._id),
+        nome: user.nome,
+        usuario: user.usuario,
+        perfil: user.perfil
+      };
+
+      req.session.save((saveErr) => {
+        if (saveErr) {
+          return res.status(500).json({
+            ok: false,
+            message: 'Erro ao salvar sessão'
+          });
+        }
+
+        return res.json({
+          ok: true,
+          user: req.session.user
+        });
+      });
     });
   } catch (error) {
     return res.status(500).json({
@@ -57,7 +75,7 @@ router.post('/login', async (req, res) => {
 
 router.post('/logout', (req, res) => {
   req.session.destroy(() => {
-    res.clearCookie('connect.sid');
+    res.clearCookie('dashboard.sid');
     return res.json({ ok: true });
   });
 });

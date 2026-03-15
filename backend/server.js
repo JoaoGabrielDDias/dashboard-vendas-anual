@@ -6,16 +6,17 @@ import path from 'path';
 import session from 'express-session';
 import { fileURLToPath } from 'url';
 import dns from 'node:dns';
+import helmet from 'helmet';
 
 import vendasRouter from './routes/vendas.js';
 import authRouter from './routes/auth.js';
 
 dns.setServers(['1.1.1.1', '8.8.8.8']);
-
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const IS_PROD = process.env.NODE_ENV === 'production';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -23,65 +24,100 @@ const publicDir = path.join(__dirname, 'public');
 
 function requireAuth(req, res, next) {
   if (req.session?.user) return next();
-  return res.redirect('/login.html');
+  return res.redirect('/login');
 }
 
 app.set('trust proxy', 1);
 
-app.use(cors());
+app.use(
+  helmet({
+    contentSecurityPolicy: false
+  })
+);
+
+app.use(
+  cors({
+    origin: true,
+    credentials: true
+  })
+);
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
   session({
+    name: 'dashboard.sid',
     secret: process.env.SESSION_SECRET || 'troque_essa_chave',
     resave: false,
     saveUninitialized: false,
+    proxy: IS_PROD,
     cookie: {
       httpOnly: true,
       sameSite: 'lax',
-      secure: true,
+      secure: IS_PROD,
       maxAge: 1000 * 60 * 60 * 12
     }
   })
 );
 
-// arquivos estáticos
-app.use(express.static(publicDir));
+// NÃO servir index.html automaticamente
+app.use(
+  express.static(publicDir, {
+    index: false
+  })
+);
 
 // APIs
 app.use('/api/auth', authRouter);
 app.use('/api/vendas', requireAuth, vendasRouter);
 
-// healthcheck
+// Healthcheck
 app.get('/health', (req, res) => {
-  res.json({ ok: true, message: 'Servidor online' });
+  res.json({
+    ok: true,
+    env: process.env.NODE_ENV || 'development',
+    mongoReadyState: mongoose.connection.readyState,
+    authenticated: !!req.session?.user
+  });
 });
 
-// rotas públicas de login
+// Login público
 app.get('/login', (req, res) => {
-  res.sendFile(path.join(publicDir, 'login.html'));
+  if (req.session?.user) return res.redirect('/');
+  return res.sendFile(path.join(publicDir, 'login.html'));
 });
 
 app.get('/login.html', (req, res) => {
-  res.sendFile(path.join(publicDir, 'login.html'));
+  if (req.session?.user) return res.redirect('/');
+  return res.sendFile(path.join(publicDir, 'login.html'));
 });
 
-// dashboard protegido
+// Dashboard protegido
 app.get('/', requireAuth, (req, res) => {
-  res.sendFile(path.join(publicDir, 'index.html'));
+  return res.sendFile(path.join(publicDir, 'index.html'));
 });
 
 app.get('/dashboard', requireAuth, (req, res) => {
-  res.sendFile(path.join(publicDir, 'index.html'));
+  return res.sendFile(path.join(publicDir, 'index.html'));
 });
 
 app.get('/index.html', requireAuth, (req, res) => {
-  res.sendFile(path.join(publicDir, 'index.html'));
+  return res.sendFile(path.join(publicDir, 'index.html'));
+});
+
+// Fallback
+app.use((req, res) => {
+  if (!req.session?.user) return res.redirect('/login');
+  return res.redirect('/');
 });
 
 async function startServer() {
   try {
+    if (!process.env.MONGODB_URI) {
+      throw new Error('MONGODB_URI não configurado');
+    }
+
     await mongoose.connect(process.env.MONGODB_URI);
     console.log('MongoDB conectado com sucesso');
 
@@ -89,7 +125,7 @@ async function startServer() {
       console.log(`Servidor rodando na porta ${PORT}`);
     });
   } catch (error) {
-    console.error('Erro ao conectar no MongoDB:', error.message);
+    console.error('Erro ao iniciar servidor:', error.message);
     process.exit(1);
   }
 }

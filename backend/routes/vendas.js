@@ -32,13 +32,13 @@ router.get('/', async (req, res) => {
   try {
     const dados = await Venda.find({}).lean();
 
-    res.json({
+    return res.json({
       ok: true,
       total: dados.length,
       data: dados
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       ok: false,
       message: 'Erro ao buscar vendas',
       error: error.message
@@ -93,7 +93,7 @@ router.get('/normalizado', async (req, res) => {
 
     const anosDisponiveis = [...new Set(data.map(r => r.ano))].sort((a, b) => a - b);
 
-    res.json({
+    return res.json({
       ok: true,
       totalBruto: docs.length,
       totalConsolidado: data.length,
@@ -101,7 +101,7 @@ router.get('/normalizado', async (req, res) => {
       data
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       ok: false,
       message: 'Erro ao buscar dados normalizados',
       error: error.message

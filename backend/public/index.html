@@ -1084,11 +1084,16 @@
 
   async function checkAuth(){
     try {
-      const resp = await fetch('/api/auth/me');
+      const resp = await fetch('/api/auth/me', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' }
+      });
+
       const json = await resp.json();
 
       if (!resp.ok || !json.ok || !json.authenticated) {
-        window.location.href = '/login.html';
+        window.location.href = '/login';
         return false;
       }
 
@@ -1101,7 +1106,7 @@
 
       return true;
     } catch (error) {
-      window.location.href = '/login.html';
+      window.location.href = '/login';
       return false;
     }
   }
@@ -1110,11 +1115,16 @@
     try {
       setStatus('Buscando dados do MongoDB…', 'warn');
 
-      const resp = await fetch('/api/vendas/normalizado');
+      const resp = await fetch('/api/vendas/normalizado', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' }
+      });
+
       const json = await resp.json();
 
       if (resp.status === 401) {
-        window.location.href = '/login.html';
+        window.location.href = '/login';
         return;
       }
 
@@ -1205,9 +1215,12 @@
 
   els.btnLogout.addEventListener('click', async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin'
+      });
     } catch (_) {}
-    window.location.href = '/login.html';
+    window.location.href = '/login';
   });
 
   els.btnToggle.addEventListener('click', ()=>{
