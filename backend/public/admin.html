@@ -95,7 +95,6 @@
       width:100%;max-width:560px;background:#fff;border:1px solid var(--line);border-radius:20px;box-shadow:var(--shadow);padding:18px;
       max-height:90vh;overflow:auto;
     }
-    .modal.lg{max-width:980px}
     .modal h3{margin:0 0 12px}
     .formGrid{display:grid;gap:12px}
     label{display:block;font-size:13px;font-weight:900;color:var(--muted);margin-bottom:6px}
@@ -119,7 +118,7 @@
       font-size:13px;color:var(--muted);font-weight:800;
     }
     .statGrid{
-      display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:14px;
+      display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:14px;
     }
     .stat{
       border:1px solid var(--line);border-radius:14px;background:#fff;padding:12px;
@@ -163,7 +162,7 @@
     <div class="topbar">
       <div>
         <h1>Painel Admin</h1>
-        <p>Gestão segura de usuários e importações do dashboard</p>
+        <p>Gestão segura de usuários, importações e auditoria</p>
       </div>
       <div class="actions">
         <button class="btn2" id="btnBack">Voltar ao Dashboard</button>
@@ -194,7 +193,7 @@
       <div class="panelHead">
         <div>
           <h2>Importação de Dados</h2>
-          <div class="muted">CSV e XLSX com preview, validação, bloqueio de duplicidade e histórico</div>
+          <div class="muted">CSV e XLSX com preview, validação, duplicidade controlada e auditoria</div>
         </div>
       </div>
 
@@ -203,14 +202,18 @@
       <div class="uploadBox">
         <div class="uploadRow">
           <input id="fileInput" type="file" accept=".csv,.xlsx,.xls" />
+          <select id="duplicateMode" style="max-width:260px;">
+            <option value="ignore">Duplicados: Ignorar</option>
+            <option value="replace">Duplicados: Substituir dados existentes</option>
+          </select>
           <button class="btn" id="btnPreview">Gerar Preview</button>
           <button class="btn2" id="btnConfirmImport" disabled>Confirmar Importação</button>
         </div>
         <div class="fileInfo" id="fileInfo">Nenhum arquivo selecionado.</div>
         <div class="chips">
-          <span class="chip">Cabeçalhos esperados: Date, vlr_venda_paga_total, vlr_meta...</span>
-          <span class="chip">Ano/Mês/Dia são gerados automaticamente a partir do Date</span>
-          <span class="chip">Duplicados são ignorados com segurança</span>
+          <span class="chip">Date gera Ano/Mês/Dia automaticamente</span>
+          <span class="chip">Preview obrigatório antes de gravar</span>
+          <span class="chip">Modo seguro para duplicados</span>
         </div>
       </div>
 
@@ -219,14 +222,15 @@
           <div class="stat"><small>Total Linhas</small><div class="n" id="pvTotal">0</div></div>
           <div class="stat"><small>Válidas</small><div class="n" id="pvValidas">0</div></div>
           <div class="stat"><small>Novas</small><div class="n" id="pvNovas">0</div></div>
+          <div class="stat"><small>Substituir</small><div class="n" id="pvReplace">0</div></div>
           <div class="stat"><small>Duplicadas</small><div class="n" id="pvDup">0</div></div>
           <div class="stat"><small>Inválidas</small><div class="n" id="pvInvalidas">0</div></div>
         </div>
 
         <div class="previewGrid">
           <div class="box">
-            <h4>Prévia dos novos registros</h4>
-            <div class="sub">Somente os dados novos serão enviados ao dashboard após confirmação.</div>
+            <h4>Prévia dos registros a processar</h4>
+            <div class="sub">Novos e, se selecionado, também os que serão substituídos.</div>
             <div class="tableWrap">
               <table>
                 <thead>
@@ -264,7 +268,7 @@
       <div class="panelHead">
         <div>
           <h2>Histórico de Upload</h2>
-          <div class="muted">Controle completo dos uploads realizados pelos administradores</div>
+          <div class="muted">Controle completo dos uploads realizados</div>
         </div>
         <button class="btn2" id="btnRefreshHistory">Atualizar Histórico</button>
       </div>
@@ -284,6 +288,32 @@
             </tr>
           </thead>
           <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panelHead">
+        <div>
+          <h2>Auditoria</h2>
+          <div class="muted">Registro das ações críticas do admin</div>
+        </div>
+        <button class="btn2" id="btnRefreshAudit">Atualizar Auditoria</button>
+      </div>
+
+      <div class="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Ação</th>
+              <th>Entidade</th>
+              <th>Alvo</th>
+              <th>Admin</th>
+              <th>Detalhes</th>
+            </tr>
+          </thead>
+          <tbody id="auditBody"></tbody>
         </table>
       </div>
     </section>
@@ -367,6 +397,7 @@
   <script>
     let USERS = [];
     let HISTORY = [];
+    let AUDIT = [];
     let editingUserId = null;
     let changingPasswordUserId = null;
     let previewReady = false;
@@ -377,7 +408,9 @@
       msg: document.getElementById('msg'),
       msgImport: document.getElementById('msgImport'),
       historyBody: document.getElementById('historyBody'),
+      auditBody: document.getElementById('auditBody'),
       btnRefreshHistory: document.getElementById('btnRefreshHistory'),
+      btnRefreshAudit: document.getElementById('btnRefreshAudit'),
 
       kpiTotal: document.getElementById('kpiTotal'),
       kpiAtivos: document.getElementById('kpiAtivos'),
@@ -405,12 +438,14 @@
 
       fileInput: document.getElementById('fileInput'),
       fileInfo: document.getElementById('fileInfo'),
+      duplicateMode: document.getElementById('duplicateMode'),
       btnPreview: document.getElementById('btnPreview'),
       btnConfirmImport: document.getElementById('btnConfirmImport'),
       previewWrap: document.getElementById('previewWrap'),
       pvTotal: document.getElementById('pvTotal'),
       pvValidas: document.getElementById('pvValidas'),
       pvNovas: document.getElementById('pvNovas'),
+      pvReplace: document.getElementById('pvReplace'),
       pvDup: document.getElementById('pvDup'),
       pvInvalidas: document.getElementById('pvInvalidas'),
       previewTableBody: document.getElementById('previewTableBody'),
@@ -593,6 +628,39 @@
       renderHistory();
     }
 
+    function renderAudit() {
+      els.auditBody.innerHTML = AUDIT.map(a => `
+        <tr>
+          <td>${fmtDate(a.createdAt)}</td>
+          <td>${a.action || '—'}</td>
+          <td>${a.entity || '—'}</td>
+          <td>${a.entityLabel || a.entityId || '—'}</td>
+          <td>${a.actor?.usuario || a.actor?.nome || '—'}</td>
+          <td><pre style="margin:0;white-space:pre-wrap;font-size:11px;">${JSON.stringify(a.details || {}, null, 2)}</pre></td>
+        </tr>
+      `).join('') || `
+        <tr><td colspan="6">Nenhum log de auditoria encontrado.</td></tr>
+      `;
+    }
+
+    async function loadAudit() {
+      const resp = await fetch('/api/admin/audit', {
+        method: 'GET',
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' }
+      });
+
+      const json = await resp.json();
+
+      if (!resp.ok || !json.ok) {
+        showMsg(json.message || 'Erro ao carregar auditoria', 'bad');
+        return;
+      }
+
+      AUDIT = json.data || [];
+      renderAudit();
+    }
+
     function resetUserForm() {
       editingUserId = null;
       els.modalTitle.textContent = 'Novo Usuário';
@@ -674,6 +742,7 @@
         showMsg(json.message || 'Operação realizada com sucesso', 'ok');
         closeUserModal();
         await loadUsers();
+        await loadAudit();
       } catch (_) {
         showMsg('Erro ao conectar com o servidor', 'bad');
       }
@@ -714,6 +783,7 @@
 
         showMsg(json.message || 'Senha atualizada', 'ok');
         closePasswordModal();
+        await loadAudit();
       } catch (_) {
         showMsg('Erro ao conectar com o servidor', 'bad');
       }
@@ -745,6 +815,7 @@
 
         showMsg(json.message || 'Status alterado', 'ok');
         await loadUsers();
+        await loadAudit();
       } catch (_) {
         showMsg('Erro ao conectar com o servidor', 'bad');
       }
@@ -771,6 +842,7 @@
 
         showMsg(json.message || 'Usuário excluído', 'ok');
         await loadUsers();
+        await loadAudit();
       } catch (_) {
         showMsg('Erro ao conectar com o servidor', 'bad');
       }
@@ -783,6 +855,7 @@
       els.pvTotal.textContent = '0';
       els.pvValidas.textContent = '0';
       els.pvNovas.textContent = '0';
+      els.pvReplace.textContent = '0';
       els.pvDup.textContent = '0';
       els.pvInvalidas.textContent = '0';
       els.previewTableBody.innerHTML = '';
@@ -797,6 +870,7 @@
       els.pvTotal.textContent = preview.totalLinhas || 0;
       els.pvValidas.textContent = preview.validas || 0;
       els.pvNovas.textContent = preview.novas || 0;
+      els.pvReplace.textContent = preview.substituicoes || 0;
       els.pvDup.textContent = dupTotal;
       els.pvInvalidas.textContent = preview.invalidas || 0;
 
@@ -810,7 +884,7 @@
           <td>${fmtBRL(r.vlr_desvio_meta_calcados)}</td>
           <td>${fmtBRL(r.vlr_desvio_mdsaa)}</td>
         </tr>
-      `).join('') || `<tr><td colspan="6">Nenhum registro novo para exibir.</td></tr>`;
+      `).join('') || `<tr><td colspan="6">Nenhum registro para exibir.</td></tr>`;
 
       const invalidRows = preview.invalidRows || [];
       els.invalidList.innerHTML = invalidRows.length
@@ -826,7 +900,7 @@
         : `<div class="listItem empty">Nenhuma duplicidade encontrada.</div>`;
 
       previewReady = true;
-      els.btnConfirmImport.disabled = !(preview.novas > 0);
+      els.btnConfirmImport.disabled = !(preview.novas > 0 || preview.substituicoes > 0);
     }
 
     async function previewImport() {
@@ -841,6 +915,7 @@
 
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('duplicateMode', els.duplicateMode.value);
 
       els.btnPreview.disabled = true;
       els.btnConfirmImport.disabled = true;
@@ -860,13 +935,15 @@
         }
 
         renderPreview(json.preview);
-        if ((json.preview?.novas || 0) > 0) {
+
+        if ((json.preview?.novas || 0) > 0 || (json.preview?.substituicoes || 0) > 0) {
           showImportMsg('Preview gerado. Revise os dados e confirme a importação.', 'ok');
         } else {
           showImportMsg('Os dados do arquivo já existem ou não há registros válidos novos.', 'warn');
         }
 
         await loadHistory();
+        await loadAudit();
       } catch (_) {
         showImportMsg('Erro ao conectar com o servidor durante o preview.', 'bad');
       } finally {
@@ -882,7 +959,7 @@
         return;
       }
 
-      if (!confirm('Confirmar importação dos dados novos para o dashboard?')) return;
+      if (!confirm('Confirmar importação dos dados processados para o dashboard?')) return;
 
       els.btnConfirmImport.disabled = true;
 
@@ -903,6 +980,7 @@
         showImportMsg(json.message || 'Dados enviados para o dashboard com sucesso.', 'ok');
         resetPreviewUI();
         await loadHistory();
+        await loadAudit();
       } catch (_) {
         showImportMsg('Erro ao conectar com o servidor durante a confirmação.', 'bad');
       }
@@ -938,12 +1016,14 @@
     els.btnPreview.addEventListener('click', previewImport);
     els.btnConfirmImport.addEventListener('click', confirmImport);
     els.btnRefreshHistory.addEventListener('click', loadHistory);
+    els.btnRefreshAudit.addEventListener('click', loadAudit);
 
     async function boot() {
       const ok = await checkAdmin();
       if (!ok) return;
       await loadUsers();
       await loadHistory();
+      await loadAudit();
     }
 
     boot();

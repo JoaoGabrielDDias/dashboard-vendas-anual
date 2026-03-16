@@ -8,7 +8,6 @@ import { fileURLToPath } from 'url';
 import dns from 'node:dns';
 import helmet from 'helmet';
 
-
 import vendasRouter from './routes/vendas.js';
 import authRouter from './routes/auth.js';
 import adminRouter from './routes/admin.js';
@@ -76,11 +75,13 @@ app.use(
   })
 );
 
+// APIs
 app.use('/api/auth', authRouter);
 app.use('/api/vendas', requireAuth, vendasRouter);
 app.use('/api/admin', adminRouter);
 app.use('/api/imports', importsRouter);
 
+// Healthcheck
 app.get('/health', (req, res) => {
   res.json({
     ok: true,
@@ -90,6 +91,7 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Login público
 app.get('/login', (req, res) => {
   if (req.session?.user) return res.redirect('/');
   return res.sendFile(path.join(publicDir, 'login.html'));
@@ -100,6 +102,7 @@ app.get('/login.html', (req, res) => {
   return res.sendFile(path.join(publicDir, 'login.html'));
 });
 
+// Dashboard protegido
 app.get('/', requireAuth, (req, res) => {
   return res.sendFile(path.join(publicDir, 'index.html'));
 });
@@ -112,6 +115,7 @@ app.get('/index.html', requireAuth, (req, res) => {
   return res.sendFile(path.join(publicDir, 'index.html'));
 });
 
+// Painel admin protegido
 app.get('/admin', requireAdminPage, (req, res) => {
   return res.sendFile(path.join(publicDir, 'admin.html'));
 });
@@ -120,6 +124,7 @@ app.get('/admin.html', requireAdminPage, (req, res) => {
   return res.sendFile(path.join(publicDir, 'admin.html'));
 });
 
+// Fallback
 app.use((req, res) => {
   if (!req.session?.user) return res.redirect('/login');
   return res.redirect('/');

@@ -3,6 +3,7 @@ import multer from 'multer';
 import XLSX from 'xlsx';
 import Venda from '../models/venda.js';
 import UploadHistory from '../models/uploadHistory.js';
+import { registerAudit } from '../utils/audit.js';
 
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage() });
@@ -163,7 +164,6 @@ function mapRow(row) {
 
 router.use(requireAdmin);
 
-// histórico
 router.get('/history', async (_req, res) => {
   try {
     const rows = await UploadHistory.find({}).sort({ createdAt: -1 }).lean();
@@ -177,13 +177,13 @@ router.get('/history', async (_req, res) => {
   }
 });
 
-// preview
 router.post('/preview', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ ok: false, message: 'Arquivo não enviado' });
     }
 
+    const duplicateMode = String(req.body.duplicateMode || 'ignore').toLowerCase();
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer', cellDates: true });
     const sheetName = workbook.SheetNames[0];
     const sheet = workbook.Sheets[sheetName];
@@ -197,7 +197,6 @@ router.post('/preview', upload.single('file'), async (req, res) => {
     const invalidRows = [];
     const fileKeys = new Set();
     const duplicateInFile = [];
-    const candidateKeys = [];
 
     for (let i = 0; i < rows.length; i++) {
       const parsed = mapRow(rows[i]);
@@ -222,28 +221,30 @@ router.post('/preview', upload.single('file'), async (req, res) => {
       }
 
       fileKeys.add(key);
-      candidateKeys.push(key);
       mapped.push(row);
     }
 
-    const existing = await Venda.find(
-      {
-        $or: mapped.map(r => ({ ano: r.ano, mes: r.mes, dia: r.dia }))
-      },
-      { ano: 1, mes: 1, dia: 1 }
-    ).lean();
+    const existing = mapped.length
+      ? await Venda.find(
+          { $or: mapped.map(r => ({ ano: r.ano, mes: r.mes, dia: r.dia })) },
+          { ano: 1, mes: 1, dia: 1 }
+        ).lean()
+      : [];
 
-    const existingKeys = new Set(
-      existing.map(r => `${r.ano}-${r.mes}-${r.dia}`)
-    );
+    const existingKeys = new Set(existing.map(r => `${r.ano}-${r.mes}-${r.dia}`));
 
     const novas = [];
     const duplicadasBanco = [];
+    const substituicoes = [];
 
     for (const row of mapped) {
       const key = `${row.ano}-${row.mes}-${row.dia}`;
+
       if (existingKeys.has(key)) {
         duplicadasBanco.push(key);
+        if (duplicateMode === 'replace') {
+          substituicoes.push(row);
+        }
       } else {
         novas.push(row);
       }
@@ -252,7 +253,9 @@ router.post('/preview', upload.single('file'), async (req, res) => {
     req.session.importPreview = {
       fileName: req.file.originalname,
       mimeType: req.file.mimetype,
-      novas
+      duplicateMode,
+      novas,
+      substituicoes
     };
 
     const history = await UploadHistory.create({
@@ -270,7 +273,26 @@ router.post('/preview', upload.single('file'), async (req, res) => {
       duplicadasArquivo: duplicateInFile.length,
       invalidas: invalidRows.length,
       status: 'preview',
-      resumo: 'Preview gerado com sucesso'
+      resumo: duplicateMode === 'replace'
+        ? 'Preview gerado com substituição de duplicados'
+        : 'Preview gerado com bloqueio de duplicados'
+    });
+
+    await registerAudit(req, {
+      action: 'IMPORT_PREVIEW',
+      entity: 'Venda',
+      entityId: String(history._id),
+      entityLabel: req.file.originalname,
+      details: {
+        duplicateMode,
+        totalLinhas: rows.length,
+        validas: mapped.length,
+        novas: novas.length,
+        substituicoes: substituicoes.length,
+        duplicadasBanco: duplicadasBanco.length,
+        duplicadasArquivo: duplicateInFile.length,
+        invalidas: invalidRows.length
+      }
     });
 
     return res.json({
@@ -278,13 +300,15 @@ router.post('/preview', upload.single('file'), async (req, res) => {
       message: 'Preview gerado com sucesso',
       preview: {
         fileName: req.file.originalname,
+        duplicateMode,
         totalLinhas: rows.length,
         validas: mapped.length,
         novas: novas.length,
+        substituicoes: substituicoes.length,
         duplicadasBanco: duplicadasBanco.length,
         duplicadasArquivo: duplicateInFile.length,
         invalidas: invalidRows.length,
-        sample: novas.slice(0, 10),
+        sample: [...novas, ...substituicoes].slice(0, 10),
         invalidRows: invalidRows.slice(0, 20),
         duplicateInFile: duplicateInFile.slice(0, 20),
         duplicateInDb: duplicadasBanco.slice(0, 20)
@@ -300,27 +324,35 @@ router.post('/preview', upload.single('file'), async (req, res) => {
   }
 });
 
-// confirmar importação
 router.post('/confirm', async (req, res) => {
   try {
     const preview = req.session.importPreview;
 
-    if (!preview || !Array.isArray(preview.novas)) {
+    if (!preview) {
       return res.status(400).json({
         ok: false,
         message: 'Nenhum preview pendente para confirmar'
       });
     }
 
-    if (!preview.novas.length) {
-      return res.json({
-        ok: true,
-        message: 'Nenhum dado novo para importar',
-        inserted: 0
-      });
+    let inserted = 0;
+    let replaced = 0;
+
+    if (Array.isArray(preview.novas) && preview.novas.length) {
+      const result = await Venda.insertMany(preview.novas, { ordered: false });
+      inserted = result.length;
     }
 
-    const result = await Venda.insertMany(preview.novas, { ordered: false });
+    if (preview.duplicateMode === 'replace' && Array.isArray(preview.substituicoes) && preview.substituicoes.length) {
+      for (const row of preview.substituicoes) {
+        await Venda.findOneAndUpdate(
+          { ano: row.ano, mes: row.mes, dia: row.dia },
+          { $set: row },
+          { new: true }
+        );
+        replaced++;
+      }
+    }
 
     await UploadHistory.create({
       fileName: preview.fileName,
@@ -330,31 +362,40 @@ router.post('/confirm', async (req, res) => {
         nome: req.session.user.nome,
         usuario: req.session.user.usuario
       },
-      totalLinhas: preview.novas.length,
-      validas: preview.novas.length,
-      novas: preview.novas.length,
-      duplicadasBanco: 0,
+      totalLinhas: (preview.novas?.length || 0) + (preview.substituicoes?.length || 0),
+      validas: (preview.novas?.length || 0) + (preview.substituicoes?.length || 0),
+      novas: inserted,
+      duplicadasBanco: preview.duplicateMode === 'replace' ? 0 : (preview.substituicoes?.length || 0),
       duplicadasArquivo: 0,
       invalidas: 0,
       status: 'importado',
-      resumo: 'Dados enviados para o dashboard'
+      resumo: preview.duplicateMode === 'replace'
+        ? `Importação concluída: ${inserted} novos e ${replaced} substituídos`
+        : `Importação concluída: ${inserted} novos`
+    });
+
+    await registerAudit(req, {
+      action: 'IMPORT_CONFIRM',
+      entity: 'Venda',
+      entityLabel: preview.fileName,
+      details: {
+        duplicateMode: preview.duplicateMode,
+        inserted,
+        replaced
+      }
     });
 
     req.session.importPreview = null;
 
     return res.json({
       ok: true,
-      message: 'Dados enviados para o dashboard com sucesso',
-      inserted: result.length
+      message: preview.duplicateMode === 'replace'
+        ? `Dados enviados para o dashboard. ${inserted} novos e ${replaced} atualizados.`
+        : `Dados enviados para o dashboard. ${inserted} novos registros inseridos.`,
+      inserted,
+      replaced
     });
   } catch (error) {
-    if (String(error.message || '').includes('duplicate key')) {
-      return res.status(409).json({
-        ok: false,
-        message: 'Há dados que já existem no banco'
-      });
-    }
-
     return res.status(500).json({
       ok: false,
       message: 'Erro ao confirmar importação',
